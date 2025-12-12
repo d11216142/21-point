@@ -256,7 +256,7 @@
                 flex-direction: column;
             }
 
-            button {
+            .button-group button {
                 width: 100%;
             }
         }
@@ -522,7 +522,8 @@
             bankroll -= bet;
 
             // Initialize new round
-            deck = shuffleDeck(createDeck());
+            const newDeck = shuffleDeck(createDeck());
+            deck = newDeck;
             playerHand = [];
             dealerHand = [];
 
@@ -683,7 +684,7 @@
         function loadBankroll() {
             const saved = localStorage.getItem('blackjack_bankroll');
             if (saved !== null) {
-                const value = parseInt(saved);
+                const value = parseInt(saved, 10);
                 if (!isNaN(value) && value >= 0) {
                     bankroll = value;
                 }
