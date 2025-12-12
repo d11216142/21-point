@@ -272,9 +272,13 @@
 <body>
     <div class="container">
         <header>
-            <h1>🃏 21點 (Blackjack) 🃏</h1>
+            <h1 id="gameTitle">🃏 21點 (Blackjack) 🃏</h1>
             <div class="bankroll-display">
                 籌碼: <span id="bankrollDisplay">1000</span>
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn-bet" style="margin: 0 5px;" onclick="setGameMode('blackjack')">21點模式</button>
+                <button class="btn-bet" style="margin: 0 5px;" onclick="setGameMode('tenHalf')">10點半模式</button>
             </div>
         </header>
 
@@ -333,7 +337,16 @@
         // ========================================
         const INITIAL_BANKROLL = 1000;
         const BLACKJACK_PAYOUT = 1.5; // 3:2 payout
-        const DEALER_STAND_VALUE = 17;
+        
+        // Game Mode
+        const GameMode = {
+            BLACKJACK: 'blackjack',
+            TEN_HALF: 'tenHalf'
+        };
+        
+        let gameMode = GameMode.BLACKJACK;
+        let TARGET_VALUE = 21;
+        let DEALER_STAND_VALUE = 17;
 
         // ========================================
         // Game State
@@ -383,9 +396,17 @@
         }
 
         function getCardValue(card) {
-            if (card.rank === 'A') return 11;
-            if (['J', 'Q', 'K'].includes(card.rank)) return 10;
-            return parseInt(card.rank);
+            if (gameMode === GameMode.TEN_HALF) {
+                // 10點半模式: A=1, J/Q/K=0.5
+                if (card.rank === 'A') return 1;
+                if (['J', 'Q', 'K'].includes(card.rank)) return 0.5;
+                return parseInt(card.rank);
+            } else {
+                // 21點模式: A=11, J/Q/K=10
+                if (card.rank === 'A') return 11;
+                if (['J', 'Q', 'K'].includes(card.rank)) return 10;
+                return parseInt(card.rank);
+            }
         }
 
         function calculateScore(hand) {
@@ -395,20 +416,28 @@
             for (let card of hand) {
                 const value = getCardValue(card);
                 score += value;
-                if (card.rank === 'A') aces++;
+                if (card.rank === 'A' && gameMode === GameMode.BLACKJACK) aces++;
             }
 
-            // Adjust for aces
-            while (score > 21 && aces > 0) {
-                score -= 10;
-                aces--;
+            // Adjust for aces (only in Blackjack mode)
+            if (gameMode === GameMode.BLACKJACK) {
+                while (score > TARGET_VALUE && aces > 0) {
+                    score -= 10;
+                    aces--;
+                }
             }
 
             return score;
         }
 
         function isBlackjack(hand) {
-            return hand.length === 2 && calculateScore(hand) === 21;
+            if (gameMode === GameMode.TEN_HALF) {
+                // 10點半模式: 兩張牌剛好10.5點
+                return hand.length === 2 && calculateScore(hand) === 10.5;
+            } else {
+                // 21點模式: 兩張牌剛好21點
+                return hand.length === 2 && calculateScore(hand) === 21;
+            }
         }
 
         // ========================================
@@ -493,6 +522,32 @@
         }
 
         // ========================================
+        // Game Mode Functions
+        // ========================================
+        function setGameMode(mode) {
+            if (gameState !== GameState.BETTING) {
+                showMessage('請在新回合時切換模式！');
+                return;
+            }
+            
+            gameMode = mode;
+            
+            if (mode === GameMode.TEN_HALF) {
+                TARGET_VALUE = 10.5;
+                DEALER_STAND_VALUE = 9; // 莊家在9點或以上停牌
+                document.getElementById('gameTitle').textContent = '🎴 10點半 (Ten and a Half) 🎴';
+                showMessage('已切換至10點半模式！A=1, J/Q/K=0.5, 目標10.5點');
+            } else {
+                TARGET_VALUE = 21;
+                DEALER_STAND_VALUE = 17;
+                document.getElementById('gameTitle').textContent = '🃏 21點 (Blackjack) 🃏';
+                showMessage('已切換至21點模式！A=1/11, J/Q/K=10, 目標21點');
+            }
+            
+            updateUI();
+        }
+
+        // ========================================
         // Betting Functions
         // ========================================
         function adjustBet(amount) {
@@ -554,26 +609,29 @@
                 // Push
                 gameState = GameState.SETTLEMENT;
                 bankroll += bet; // Return bet
-                showMessage('平手！雙方都是 Blackjack！', 'push');
+                const modeName = gameMode === GameMode.TEN_HALF ? '10點半' : 'Blackjack';
+                showMessage(`平手！雙方都是 ${modeName}！`, 'push');
                 updateUI();
                 return;
             }
 
             if (playerBJ) {
-                // Player blackjack wins
+                // Player blackjack/ten-half wins
                 gameState = GameState.SETTLEMENT;
                 const winAmount = bet + Math.floor(bet * BLACKJACK_PAYOUT);
                 bankroll += winAmount;
-                showMessage(`🎉 Blackjack！你贏了 ${winAmount - bet} 籌碼！`, 'win');
+                const modeName = gameMode === GameMode.TEN_HALF ? '10點半' : 'Blackjack';
+                showMessage(`🎉 ${modeName}！你贏了 ${winAmount - bet} 籌碼！`, 'win');
                 updateUI();
                 saveBankroll();
                 return;
             }
 
             if (dealerBJ) {
-                // Dealer blackjack wins
+                // Dealer blackjack/ten-half wins
                 gameState = GameState.SETTLEMENT;
-                showMessage(`💔 莊家是 Blackjack，你輸了 ${bet} 籌碼！`, 'lose');
+                const modeName = gameMode === GameMode.TEN_HALF ? '10點半' : 'Blackjack';
+                showMessage(`💔 莊家是 ${modeName}，你輸了 ${bet} 籌碼！`, 'lose');
                 updateUI();
                 saveBankroll();
                 return;
@@ -593,7 +651,7 @@
             playerHand.push(deck.pop());
             const playerScore = calculateScore(playerHand);
 
-            if (playerScore > 21) {
+            if (playerScore > TARGET_VALUE) {
                 // Player busts
                 gameState = GameState.SETTLEMENT;
                 showMessage(`💥 爆牌！你輸了 ${bet} 籌碼！`, 'lose');
@@ -640,7 +698,7 @@
             updateUI();
 
             // Check if player busted
-            if (playerScore > 21) {
+            if (playerScore > TARGET_VALUE) {
                 gameState = GameState.SETTLEMENT;
                 showMessage(`💥 雙倍後爆牌！你輸了 ${bet} 籌碼！`, 'lose');
                 updateUI();
@@ -682,7 +740,7 @@
             let message = '';
             let messageType = '';
 
-            if (dealerScore > 21) {
+            if (dealerScore > TARGET_VALUE) {
                 // Dealer busts
                 const winAmount = bet * 2;
                 bankroll += winAmount;
