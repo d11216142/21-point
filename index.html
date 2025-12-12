@@ -457,17 +457,20 @@
 
             // Update hands
             renderHand('playerHand', playerHand, false);
-            renderHand('dealerHand', dealerHand, gameState === GameState.PLAYER_TURN);
+            // 在10點半模式，莊家牌全部可見；在21點模式，玩家回合時隱藏莊家第2張牌
+            const hideDealerCard = gameMode === GameMode.BLACKJACK && gameState === GameState.PLAYER_TURN;
+            renderHand('dealerHand', dealerHand, hideDealerCard);
 
             // Update scores
             document.getElementById('playerScore').textContent = 
                 playerHand.length > 0 ? calculateScore(playerHand) : '-';
 
-            if (gameState === GameState.PLAYER_TURN && dealerHand.length > 0) {
-                // Show only first card score during player turn
+            if (gameMode === GameMode.BLACKJACK && gameState === GameState.PLAYER_TURN && dealerHand.length > 0) {
+                // 21點模式：玩家回合時只顯示莊家第一張牌點數
                 document.getElementById('dealerScore').textContent = 
                     getCardValue(dealerHand[0]) + ' + ?';
             } else {
+                // 10點半模式或其他狀態：顯示完整點數
                 document.getElementById('dealerScore').textContent = 
                     dealerHand.length > 0 ? calculateScore(dealerHand) : '-';
             }
@@ -547,9 +550,9 @@
             
             if (mode === GameMode.TEN_HALF) {
                 TARGET_VALUE = 10.5;
-                DEALER_STAND_VALUE = 9; // 莊家在9點或以上停牌
+                DEALER_STAND_VALUE = 8; // 莊家在8點或以上停牌
                 document.getElementById('gameTitle').textContent = '🎴 10點半 (Ten and a Half) 🎴';
-                showMessage('已切換至10點半模式！A=1, J/Q/K=0.5, 目標10.5點');
+                showMessage('已切換至10點半模式！A=1, J/Q/K=0.5, 目標10.5點, 莊家≥8停牌');
             } else {
                 TARGET_VALUE = 21;
                 DEALER_STAND_VALUE = 17;
@@ -609,22 +612,36 @@
             dealerHand = [];
 
             // Deal initial cards
-            playerHand.push(deck.pop());
-            dealerHand.push(deck.pop());
-            playerHand.push(deck.pop());
-            dealerHand.push(deck.pop());
+            if (gameMode === GameMode.TEN_HALF) {
+                // 10點半: 各發1張明牌
+                playerHand.push(deck.pop());
+                dealerHand.push(deck.pop());
+            } else {
+                // 21點: 各發2張，莊家第2張暗牌
+                playerHand.push(deck.pop());
+                dealerHand.push(deck.pop());
+                playerHand.push(deck.pop());
+                dealerHand.push(deck.pop());
+            }
 
             // Check for blackjacks
             const playerBJ = isBlackjack(playerHand);
             const dealerBJ = isBlackjack(dealerHand);
 
             if (playerBJ && dealerBJ) {
-                // Push
+                // Both have perfect score
                 gameState = GameState.SETTLEMENT;
-                bankroll += bet; // Return bet
                 const modeName = gameMode === GameMode.TEN_HALF ? '10點半' : 'Blackjack';
-                showMessage(`平手！雙方都是 ${modeName}！`, 'push');
+                if (gameMode === GameMode.TEN_HALF) {
+                    // 10點半: 平手莊家贏
+                    showMessage(`💔 雙方都是 ${modeName}，平手莊家贏！你輸了 ${bet} 籌碼！`, 'lose');
+                } else {
+                    // 21點: 平手退回
+                    bankroll += bet; // Return bet
+                    showMessage(`平手！雙方都是 ${modeName}！`, 'push');
+                }
                 updateUI();
+                saveBankroll();
                 return;
             }
 
@@ -770,10 +787,17 @@
                 message = `💔 你輸了 ${bet} 籌碼！(玩家: ${playerScore}, 莊家: ${dealerScore})`;
                 messageType = 'lose';
             } else {
-                // Push
-                bankroll += bet;
-                message = `🤝 平手！退回 ${bet} 籌碼。(玩家: ${playerScore}, 莊家: ${dealerScore})`;
-                messageType = 'push';
+                // Tie
+                if (gameMode === GameMode.TEN_HALF) {
+                    // 10點半模式：平手莊家贏
+                    message = `💔 平手莊家贏！你輸了 ${bet} 籌碼！(玩家: ${playerScore}, 莊家: ${dealerScore})`;
+                    messageType = 'lose';
+                } else {
+                    // 21點模式：平手退回
+                    bankroll += bet;
+                    message = `🤝 平手！退回 ${bet} 籌碼。(玩家: ${playerScore}, 莊家: ${dealerScore})`;
+                    messageType = 'push';
+                }
             }
 
             showMessage(message, messageType);
