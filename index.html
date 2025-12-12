@@ -239,6 +239,13 @@
             min-width: 100px;
         }
 
+        .btn-mode {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
         @media (max-width: 768px) {
             h1 {
                 font-size: 2rem;
@@ -277,8 +284,8 @@
                 籌碼: <span id="bankrollDisplay">1000</span>
             </div>
             <div style="margin-top: 15px;">
-                <button class="btn-bet" style="margin: 0 5px;" onclick="setGameMode('blackjack')">21點模式</button>
-                <button class="btn-bet" style="margin: 0 5px;" onclick="setGameMode('tenHalf')">10點半模式</button>
+                <button class="btn-mode" id="blackjackModeBtn" style="margin: 0 5px;" onclick="setGameMode('blackjack')">21點模式</button>
+                <button class="btn-mode" id="tenHalfModeBtn" style="margin: 0 5px;" onclick="setGameMode('tenHalf')">10點半模式</button>
             </div>
         </header>
 
@@ -495,9 +502,15 @@
             const doubleBtn = document.getElementById('doubleBtn');
             const newRoundBtn = document.getElementById('newRoundBtn');
             const betButtons = document.querySelectorAll('.btn-bet');
+            const modeButtons = document.querySelectorAll('.btn-mode');
 
             // Bet buttons
             betButtons.forEach(btn => {
+                btn.disabled = gameState !== GameState.BETTING;
+            });
+
+            // Mode buttons - only enabled during betting
+            modeButtons.forEach(btn => {
                 btn.disabled = gameState !== GameState.BETTING;
             });
 
